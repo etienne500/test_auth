@@ -7,21 +7,18 @@ use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
 {
-    // Affiche la liste de toutes les ClientApps
     public function index()
     {
         $ClientApps = ClientApp::all();
         return view('applications.index', ['applications' => $ClientApps]);
     }
 
-    // Affiche une ClientApp spécifique
     public function show($id)
     {
         $ClientApp = ClientApp::findOrFail($id);
         return view('clientappsIndex', ['applications' => $ClientApp]);
     }
 
-    // Enregistre une nouvelle ClientApp
     public function store(Request $request)
     {
         $ClientApp = new ClientApp();
@@ -33,7 +30,6 @@ class ApplicationController extends Controller
         // return redirect('/ClientApps');
     }
 
-    // Met à jour une ClientApp existante
     public function update(Request $request, $id)
     {
         $ClientApp = ClientApp::findOrFail($id);
@@ -44,7 +40,6 @@ class ApplicationController extends Controller
         return redirect('/ClientApps');
     }
 
-    // Supprime une ClientApp existante
     public function destroy($id)
     {
         $ClientApp = ClientApp::findOrFail($id);
