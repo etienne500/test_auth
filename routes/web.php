@@ -156,7 +156,6 @@ use GuzzleHttp\Client;
                             'updated_at' => $user->updated_at
                         ]);
     });
-
     
     Route::get('/user/logout', function(Request $request)
     {
@@ -221,8 +220,7 @@ use GuzzleHttp\Client;
     function(Request $request){
         $ClientApps = ClientApp::all();
         return view('clientappsIndex', ['applications' => $ClientApps]);
-    }
-    )->name('applications.index');
+    })->name('applications.index');
     
     Route::get('/applications/create', function(Request $request) {
         return view('showCreateApp');
@@ -253,8 +251,7 @@ use GuzzleHttp\Client;
         return view('showUpdateApp', ["application" => $client]);
     })->name("applications.edit");
     
-    Route::put('/applications/{id}', function(Request $request, $id)
-    {
+    Route::put('/applications/{id}', function(Request $request, $id){
         
         $user = Auth::user();
         $faker = FakerFactory::create();
