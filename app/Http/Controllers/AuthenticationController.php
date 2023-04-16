@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Faker\Factory as FakerFactory;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Redirect;
 
 class AuthenticationController extends Controller
 {
@@ -21,7 +22,7 @@ class AuthenticationController extends Controller
         return Redirect::route('app-authenticate', ['access' => $access]);
     }
 
-    public function authentication(Request $request, $access)
+    public function authenticafition(Request $request, $access)
     {
         try {
             $decodedAccess = base64_decode($access);
