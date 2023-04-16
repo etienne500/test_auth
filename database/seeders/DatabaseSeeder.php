@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         // Créer 10 utilisateurs
         for ($i = 0; $i < 10; $i++) {
             $user = new User();
+            $user->id = $faker->uuid();
             $user->first_name = $faker->firstName();
             $user->last_name = $faker->lastName();
             $user->email = $faker->unique()->safeEmail();
