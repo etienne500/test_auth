@@ -3,48 +3,99 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientApp;
+use Faker\Factory as FakerFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ApplicationController extends Controller
 {
-    public function index()
+    public function list(Request $request)
     {
-        $ClientApps = ClientApp::all();
-        return view('applications.index', ['applications' => $ClientApps]);
+        try {
+            $ClientApps = ClientApp::all();
+            return view('clientappsIndex', ['applications' => $ClientApps]);
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while fetching the list of applications.');
+        }
     }
 
-    public function show($id)
+    public function showCreate(Request $request)
     {
-        $ClientApp = ClientApp::findOrFail($id);
-        return view('clientappsIndex', ['applications' => $ClientApp]);
+        try {
+            return view('showCreateApp');
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to create a new application.');
+        }
     }
 
-    public function store(Request $request)
+    public function showApp(Request $request, $id)
     {
-        $ClientApp = new ClientApp();
-        $ClientApp->name = $request->input('name');
-        $ClientApp->description = $request->input('description');
-        $ClientApp->save();
+        try {
+            $client = ClientApp::find($id);
+            return view('showApp', ["application" => $client]);
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to display the application details.');
+        }
+    }
 
-        return redirect("applications.index");
-        // return redirect('/ClientApps');
+    public function create(Request $request)
+    {
+        try {
+            $faker = FakerFactory::create();
+
+            $ClientApp = new ClientApp();
+            $ClientApp->name = $request->input('name');
+            $ClientApp->return_url = $request->input('url');
+            $ClientApp->id = $faker->uuid();
+            $ClientApp->public_key = md5(uniqid('', true));
+            $ClientApp->secret_key = md5(uniqid('', true));
+            $ClientApp->save();
+
+            $this->logMessage($ClientApp->id, ClientApp::class, 'New application created: ' . $ClientApp->name);
+
+            return redirect("/applications");
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to create a new application.');
+        }
+    }
+
+    public function showUpdate(Request $request, $id)
+    {
+        try {
+            $client = ClientApp::find($id);
+            return view('showUpdateApp', ["application" => $client]);
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to display the update form.');
+        }
     }
 
     public function update(Request $request, $id)
     {
-        $ClientApp = ClientApp::findOrFail($id);
-        $ClientApp->name = $request->input('name');
-        $ClientApp->description = $request->input('description');
-        $ClientApp->save();
+        try {
+            $ClientApp = ClientApp::findOrFail($id);
+            $previousName = $ClientApp->name;
+            $ClientApp->name = $request->input('name');
+            $ClientApp->save();
+            $this->logMessage($ClientApp->id, ClientApp::class, "Application updated: name changed from $previousName to " . $ClientApp->name);
 
-        return redirect('/ClientApps');
+            return redirect('/applications');
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to update the application.');
+        }
     }
 
-    public function destroy($id)
+    public function delete(Request $request, $id)
     {
-        $ClientApp = ClientApp::findOrFail($id);
-        $ClientApp->delete();
+        try {
+            $ClientApp = ClientApp::findOrFail($id);
+            $clientName = $ClientApp->name;
+            ClientApp::destroy($id);
+            $this->logMessage($id, ClientApp::class, "Application deleted: $clientName");
 
-        return redirect('/ClientApps');
+            return redirect()->route('applications.index');
+        } catch (\Exception $e) {
+            return back()->with('error', 'An error occurred while trying to delete the application.');
+        }
     }
 }
+

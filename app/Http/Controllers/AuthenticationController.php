@@ -6,154 +6,257 @@ use App\Models\AccessToken;
 use App\Models\ClientApp;
 use App\Models\User;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Faker\Factory as FakerFactory;
 use Illuminate\Support\Facades\Hash;
 
 class AuthenticationController extends Controller
 {
-    public function authenticate($access)
+    public function authentication(Request $request)
     {
-        $decoded = base64_decode($access);
-        list($client_id, $public_key) = explode(':', $decoded);
-
-        $clientApp = ClientApp::where('id', $client_id)
-            ->where('public_key', $public_key)
-            ->firstOrFail();
-
-        return view('login')->with('clientApp', $clientApp);
+        $access = $request->access;
+        $this->logMessage('info', 'Redirected to app-authenticate route', 'access = ' . $access);
+        return Redirect::route('app-authenticate', ['access' => $access]);
     }
 
-    public function login(Request $request)
+    public function authentication(Request $request, $access)
     {
-        $validatedData = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-            'client_id' => 'required',
-            'public_key' => 'required',
-        ]);
+        try {
+            $decodedAccess = base64_decode($access);
+            $this->logMessage('info', 'Access token decoded', 'decoded_access = ' . $decodedAccess);
+            $accessParts = explode(':', $decodedAccess);
 
-        $client = ClientApp::where('id', $validatedData['client_id'])
-            ->where('public_key', $validatedData['public_key'])
-            ->firstOrFail();
+            if (count($accessParts) !== 2) {
+                return Redirect::back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Invalid client app.'
+                ]);
+            }
+            list($clientId, $publicKey) = $accessParts;
+            $this->logMessage($clientId, Client::class, 'Client ID and public key extracted from access token');
 
-        if (!Auth::attempt($validatedData)) {
-            return response()->json([
-                'message' => 'Identifiants invalides'
-            ], 401);
+            $clientApp = ClientApp::where('id', $clientId)->firstOrFail();
+            $this->logMessage($clientId, Client::class, 'Client app found in the database');
+
+            if ($clientApp->public_key != $publicKey) {
+                return Redirect::back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Invalid client app.'
+                ]);
+            }
+
+            $this->logMessage($clientId, Client::class, 'App authenticated');
+            return view('user-login', [
+                'appName' => $clientApp->name,
+                'access' => $decodedAccess,
+                'token' => $access
+            ]);
+
+        } catch (\Exception $e) {
+            $this->logMessage('error', 'Error in authentication method', $e->getMessage());
+            return Redirect::back()->with('message', [
+                'type' => 'error',
+                'text' => 'An error occurred while authenticating.'
+            ]);
+        }
+    }
+
+    public function login(Request $request) {
+    try {
+        $access = $request->access;
+        $decodedAccess = ($access);
+    
+        list($clientId, $publicKey) = explode(':', $decodedAccess);
+    
+        $client = ClientApp::where('id', $clientId)
+                           ->where('public_key', $publicKey)
+                           ->firstOrFail();
+        
+        if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+            $user = Auth::user();
+            $faker = FakerFactory::create();
+    
+            $accessToken = new AccessToken();
+            $accessToken->client_id = $client->id;
+            $accessToken->id = $faker->uuid();
+            $accessToken->user_id = $user->id;
+            $accessToken->expires_at = now()->addHours(1); // Expires en 1 heure
+            $accessToken->save();
+    
+            $tokenData = [
+                'id' => $accessToken->id,
+                'client_id' => $accessToken->client_id,
+                'expires_at' => $accessToken->expires_at,
+                'user' => $user 
+            ];
+            $tokenDataJson = json_encode($tokenData);
+            $signature = md5($tokenDataJson . $client->secret_key);
+            $token = base64_encode("$signature:$tokenDataJson");
+    
+            $returnUrl = $client->return_url;
+            return redirect("$returnUrl?access_token=$token");
+        } else {
+            return redirect()->back()->with('message', [
+                'type' => 'error',
+                'text' => 'Invalid email or password'
+            ]);
+        }
+            } catch (Exception $e) {
+                // $this->logMessage($e->getMessage(), 'Login Exception');
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'An error occurred during login'
+                ]);
+            }
         }
 
-        $accessToken = AccessToken::create([
-            'client_id' => $client->id,
-            'user_id' => Auth::id(),
-            'expires_at' => now()->addHours(1), // Expire dans 1 heure
-        ]);
 
-        $tokenData = [
-            'id' => $accessToken->id,
-            'client_id' => $client->id,
-            'expires_at' => $accessToken->expires_at->timestamp,
-            'user' => Auth::user(), 
-        ];
-        $tokenJson = json_encode($tokenData);
-        $signature = md5($tokenJson . $client->secret_key);
-        $token = base64_encode("$signature:$tokenJson");
 
-        return redirect('/home');
+        public function authenticate($access)
+        {
+            try {
+                $decoded = base64_decode($access);
+                list($client_id, $public_key) = explode(':', $decoded);
 
-    }
+                $clientApp = ClientApp::where('id', $client_id)
+                    ->where('public_key', $public_key)
+                    ->firstOrFail();
 
-    public function getUser(Request $request)
-    {
-        $token = $request->query('token');
-        
-        if (!$token) {
-            return response()->json(['error' => 'Token manquant'], 401);
+                return view('login')->with('clientApp', $clientApp);
+
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Erreur lors de l\'authentification du client'
+                ]);
+            }
         }
-        
-        $decodedToken = base64_decode($token);
-        
-        $tokenParts = explode(':', $decodedToken);
-        
-        if (count($tokenParts) !== 2) {
-            return response()->json(['error' => 'Token invalide'], 401);
+
+        public function logout(Request $request)
+        {
+            try {
+                $user = $request->user();
+
+                if ($user && $user->currentAccessToken()) {
+                    $user->tokens()->delete();
+                    $this->logMessage($user->id, User::class, 'Tokens deleted.');
+                }
+
+                $this->logMessage($user->id, User::class, 'User logged out.');
+                return redirect('/welcome')->with('message', [
+                    'type' => 'success',
+                    'text' => 'Vous avez été déconnecté avec succès !'
+                ]);
+                
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Erreur lors de la déconnexion'
+                ]);
+            }
         }
-        
-        $clientSignature = $tokenParts[0];
-        $tokenData = $tokenParts[1];
-        
-        $client = ClientApp::where('public_key', $request->query('public_key'))->first();
-        if (!$client) {
-            return response()->json(['error' => 'Client inconnu'], 401);
+
+        public function getUser(Request $request)
+        {
+            try {
+                $token = $request->query('token');
+                list($signature, $tokenInJson) =  explode(':', base64_decode($token), 2);
+                $accessToken = json_decode($tokenInJson);
+                
+                $client = ClientApp::where('id', '=', $accessToken->client_id)->first();
+            
+                if (!$client || md5($tokenInJson . $client->secret_key) !== $signature || $accessToken->expires_at < now()) {
+                    return response()->json(['message' => 'Token invalide ou expiré.'], 401);
+                }
+            
+                $user = User::where('id', '=', $accessToken->user->id)->first();
+            
+                $this->logMessage($user->id, User::class, 'Demande d\'informations utilisateur');
+                return view('user', [
+                                    'id' => $user->id,
+                                    'first_name' => $user->first_name,
+                                    'last_name' => $user->last_name,
+                                    'email' => $user->email,
+                                    'created_at' => $user->created_at,
+                                    'updated_at' => $user->updated_at
+                                ]);
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Erreur lors de la récupération des informations utilisateur'
+                ]);
+            }
         }
-        
-        $expectedSignature = md5($tokenData . $client->secret_key);
-        if ($clientSignature !== $expectedSignature) {
-            return response()->json(['error' => 'Signature invalide'], 401);
+
+        public function welcome(Request $request)
+        {
+            try {
+                $user = $request->user();
+
+                if ($user && $user->currentAccessToken()) {
+                    $user->tokens()->delete();
+                    $this->logMessage($user->id, User::class, 'Tokens deleted : logout.');
+                }
+                $this->logMessage(0, 'General', 'Welcome page accessed.');
+                return view('welcome');
+                
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'Erreur lors de l\'affichage de la page de bienvenue'
+                ]);
+            }
         }
-        
-        $tokenData = json_decode($tokenData, true);
-        
-        if (time() > strtotime($tokenData['expires_at'])) {
-            return response()->json(['error' => 'Token expiré'], 401);
+
+        public function userRegister(Request $request)
+        {
+            try {
+                $user = User::create([
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'email' => $request->email,
+                    'password' => Hash::make($request->password),
+                ]);
+
+                $this->logMessage($user->id, User::class, 'User registered.');
+                return redirect('/app-authenticate/' . $request->access);
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'An error occurred during login'
+                ]);
+            }
         }
-        
-        $user = User::where('id', $tokenData['user']['id'])->first();
-        if (!$user) {
-            return response()->json(['error' => 'Utilisateur inconnu'], 401);
+
+        public function register(Request $request)
+        {
+            try {
+                $token = $request->token;
+                $this->logMessage(0, 'General', 'Register page accessed with token: ' . $token);
+
+                return view('user-register', ['access' => $token]);
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'An error occurred during login'
+                ]);
+            }
         }
-        
-        return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'email' => $user->email,
-            ]
-        ]);
-    }
 
-    public function registerUser(Request $request)
-    {
-        $this->validate($request, [
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6|confirmed',
-        ]);
+        public function showLogin(Request $request)
+        {
+            try {
+                $token = $request->token;
+                $this->logMessage(0, 'General', 'Register page accessed with token: ' . $token);
 
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        return redirect('/login');
-    }
-
-
-    public function showRegisterUser(Request $request)
-    {
-        return view('user-register');
-    }
-
-
-    public function showLoginUser(Request $request)
-    {
-        return view('user-login');
-    }
-
-
-    public function showRegisterApp(Request $request)
-    {
-        return view('app-register');
-    }
-
-
-    public function showLoginApp(Request $request)
-    {
-        return view('app-login');
-    }
-
+                return view('welcome');
+            } catch (Exception $e) {
+                return redirect()->back()->with('message', [
+                    'type' => 'error',
+                    'text' => 'An error occurred during login'
+                ]);
+            }
+        }
 }

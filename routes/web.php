@@ -14,7 +14,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Faker\Factory as FakerFactory;
 use GuzzleHttp\Client;
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -26,245 +25,41 @@ use GuzzleHttp\Client;
 |
 */
 
-
-    function logMessage($loggableId, $loggableType, $message) {
-        try {
-            Log::create([
-                'loggable_id' => $loggableId,
-                'loggable_type' => $loggableType,
-                'message' => $message
-            ]);
-        } catch (\Exception $e) {
-            return redirect()->back()->with('message', [
-                'type' => 'error',
-                'text' => $e->getMessage()
-            ]);
-        }
-    }
     
+    Route::group([], function () {
+
+        Route::get('/app-authentication', "App\Http\Controllers\AuthenticationController@authentication")->name('app-authentication');
     
-    Route::get('/app-authentication', function(Request $request)
-    {      
-        $access = $request->access;
-        logMessage('info', 'Redirected to app-authenticate route', 'access = '. $access);
-        return redirect()->route('app-authenticate', ['access' => $access]);
-
-    })->name('app-authentication');
-
-
-    Route::get('/app-authenticate/{access}', function(Request $request, $access)
-    {        
-        $decodedAccess = base64_decode($access);
-        logMessage('info', 'Access token decoded', 'decoded_access = ' . $decodedAccess);
-        $accessParts = explode(':', $decodedAccess);
-
-        
-        if (count($accessParts) !== 2) {
-            return redirect()->back()->with('message', [
-                'type' => 'error',
-                'text' => 'Invalid client app.'
-            ]);
-        }
-        list($clientId, $publicKey) = $accessParts;
-        logMessage($clientId, Client::class, 'Client ID and public key extracted from access token');
-
-
-        logMessage($clientId, Client::class, 'Client app found in the database');
-        $clientApp = ClientApp::where('id', $clientId)->first();
+        Route::get('/app-authenticate/{access}', "App\Http\Controllers\AuthenticationController@authenticafition")->name('app-authenticate');
     
-        if (!$clientApp || $clientApp->public_key != $publicKey) {
-            logMessage($clientId, Client::class, 'App fail authenticated');
-            return redirect()->back()->with('message', [
-                'type' => 'error',
-                'text' => 'Invalid client app.'
-            ]);
-        }
+        Route::post('/user/login',"App\Http\Controllers\AuthenticationController@login")->name("user-login");
     
-        logMessage($clientId, Client::class, 'App authenticated');
-        return view('user-login', ['appName' => $clientApp->name,'access' => $decodedAccess, 'token' => $access]);
-    })->name('app-authenticate');
-
-    Route::post('/user/login', function(Request $request) {
-        $access = $request->access;
-        $decodedAccess = ($access);
-
-        list($clientId, $publicKey) = explode(':', $decodedAccess);
+        Route::get('/user', "App\Http\Controllers\AuthenticationController@getUser");
     
-        $client = ClientApp::where('id', $clientId)
-                           ->where('public_key', $publicKey)
-                           ->firstOrFail();
-        logMessage($clientId, Client::class, 'Client app found in the database');
-        if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+        Route::get('/user/logout',"App\Http\Controllers\AuthenticationController@logout");
     
-            $user = Auth::user();
-            $faker = FakerFactory::create();
-
-            $accessToken = new AccessToken();
-            $accessToken->client_id = $client->id;
-            $accessToken->id = $faker->uuid();
-            $accessToken->user_id = $user->id;
-            $accessToken->expires_at = now()->addHours(1); // Expires en 1 heure
-            $accessToken->save();
-
-            $tokenData = [
-                'id' => $accessToken->id,
-                'client_id' => $accessToken->client_id,
-                'expires_at' => $accessToken->expires_at,
-                'user' => $user 
-            ];
-            $tokenDataJson = json_encode($tokenData);
-            $signature = md5($tokenDataJson . $client->secret_key);
-            $token = base64_encode("$signature:$tokenDataJson");
-            logMessage($user->id, User::class, 'signature of user_id = '. $user->id);
-
-
-            $returnUrl = $client->return_url;
-            return redirect("$returnUrl?access_token=$token");
+        Route::get('/welcome', "App\Http\Controllers\AuthenticationController@welcome");
     
-        } else {
-        
-        logMessage($request->email, User::class, 'Invalid email or password');
-            return redirect()->back()->with('message', [
-                'type' => 'error',
-                'text' => 'Invalid email or password'
-            ]);
-        }
-        
-    })->name("user-login");
-
-    Route::get('/user', function(Request $request)
-    {
-        $token = $request->query('token');
-        list($signature, $tokenInJson) =  explode(':', base64_decode($token), 2);
-        $accessToken = json_decode($tokenInJson);
-        
-        $client = ClientApp::where('id', '=', $accessToken->client_id)->first();
+        Route::post('/user-register', "App\Http\Controllers\AuthenticationController@userRgister")->name("user-register");
     
-        if (!$client || md5($tokenInJson . $client->secret_key) !== $signature || $accessToken->expires_at < now()) {
-            return response()->json(['message' => 'Token invalide ou expiré.'], 401);
-        }
+        Route::get('/register',"App\Http\Controllers\AuthenticationController@register")->name("register");
     
-        $user = User::where('id', '=', $accessToken->user->id)->first();
+        Route::get('/', "App\Http\Controllers\AuthenticationController@showLogin")->name("login");
     
-        logMessage($user->id, User::class, 'Demande d\'informations utilisateur');
-        return view('user', [
-                            'id' => $user->id,
-                            'first_name' => $user->first_name,
-                            'last_name' => $user->last_name,
-                            'email' => $user->email,
-                            'created_at' => $user->created_at,
-                            'updated_at' => $user->updated_at
-                        ]);
     });
     
-    Route::get('/user/logout', function(Request $request)
-    {
-        $user = $request->user();
-
-        if ($user && $user->currentAccessToken()) {
-            $user->tokens()->delete();
-            logMessage($user->id, User::class, 'Tokens deleted.');
-        }
-
-        logMessage($user->id, User::class, 'User logged out.');
-        return redirect('/welcome')->with('message', [
-            'type' => 'success',
-            'text' => 'Vous avez été déconnecté avec succès !'
-        ]);
+    Route::group([], function () {
+        Route::get('/applications', "App\Http\Controllers\ApplicationController@list")->name('applications.index');
         
-    });    
-    
-    Route::get('/welcome', function(Request $request)
-    {
-        $user = $request->user();
-
-        if ($user && $user->currentAccessToken()) {
-            $user->tokens()->delete();
-            logMessage($user->id, User::class, 'Tokens deleted : logout.');
-        }
-        logMessage(0, 'General', 'Welcome page accessed.');
-        return view('welcome');
+        Route::get('/applications/create', "App\Http\Controllers\ApplicationController@showCreate")->name('applications.create');
         
+        Route::get('/applications/{id}', "App\Http\Controllers\ApplicationController@showApp")->name("applications.show");
+        
+        Route::post('/applications', "App\Http\Controllers\ApplicationController@create")->name('applications.store');
+        
+        Route::get('/applications/{id}/edit', "App\Http\Controllers\ApplicationController@showUpdate")->name("applications.edit");
+        
+        Route::put('/applications/{id}', "App\Http\Controllers\ApplicationController@update")->name('applications.update');
+        
+        Route::delete('/applications/{id}', "App\Http\Controllers\ApplicationController@delete")->name('applications.destroy');
     });
-
-    Route::post('/user-register', function(Request $request)
-    {
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        logMessage($user->id, User::class, 'User registered.');
-        return redirect('/app-authenticate/' . $request->access);
-    })->name("user-register");
-    
-    Route::get('/register', function(Request $request)
-    {
-        $token = $request->token;
-        logMessage(0, 'General', 'Register page accessed with token: ' . $token);
-
-        return view('user-register', ['access' => $token]);
-    })->name("register");
-
-    Route::get('/', function(Request $request)
-    {
-        $token = $request->token;
-        logMessage(0, 'General', 'Register page accessed with token: ' . $token);
-
-        return view('welcome');
-    })->name("login");
-
-    Route::get('/applications', 
-    function(Request $request){
-        $ClientApps = ClientApp::all();
-        return view('clientappsIndex', ['applications' => $ClientApps]);
-    })->name('applications.index');
-    
-    Route::get('/applications/create', function(Request $request) {
-        return view('showCreateApp');
-    })->name('applications.create');
-    
-    Route::get('/applications/{id}', function(Request $request, $id) {
-        $client = ClientApp::find($id);
-        return view('showApp', ["application" => $client]);
-    })->name("applications.show");
-    
-    Route::post('/applications', function(Request $request)
-    {        
-        $faker = FakerFactory::create();
-
-        $ClientApp = new ClientApp();
-        $ClientApp->name = $request->input('name');
-        $ClientApp->return_url = $request->input('url');
-        $ClientApp->id = $faker->uuid();
-        $ClientApp->public_key = md5(uniqid('', true));
-        $ClientApp->secret_key = md5(uniqid('', true));
-        $ClientApp->save();
-
-        return redirect("/applications");
-    })->name('applications.store');
-    
-    Route::get('/applications/{id}/edit', function(Request $request, $id) {
-        $client = ClientApp::find($id);
-        return view('showUpdateApp', ["application" => $client]);
-    })->name("applications.edit");
-    
-    Route::put('/applications/{id}', function(Request $request, $id){
-        
-        $user = Auth::user();
-        $faker = FakerFactory::create();
-
-        $ClientApp = ClientApp::findOrFail($id);
-        $ClientApp->name = $request->input('name');
-        $ClientApp->save();
-
-        return redirect('/applications');
-    })->name('applications.update');
-    
-    Route::delete('/applications/{id}', function(Request $request, $id) {
-        ClientApp::destroy($id);
-        return redirect()->route('applications.index');
-    })->name('applications.destroy');
-
