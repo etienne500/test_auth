@@ -1,0 +1,111 @@
+/* Style des formulaires */
+
+form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 2rem 0;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 0 1rem rgba(0, 0, 0, 0.2);
+    background-color: #fff;
+    width: 100%;
+    max-width: 600px;
+    transition: transform 0.3s ease;
+}
+
+form:hover {
+    transform: translateY(-0.5rem);
+    box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.2);
+}
+
+form label {
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+form input[type="text"],
+form input[type="email"],
+form input[type="password"] {
+    display: block;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 0 1rem rgba(0, 0, 0, 0.1);
+    font-size: 1.2rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+form button[type="submit"] {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+form button[type="submit"]:hover {
+    background-color: #0062cc;
+}
+
+/* Zoom on hover */
+.zoom {
+    transition: transform 0.5s;
+    transform: scale(1.1);
+}
+
+
+.user-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin: 2rem 0;
+        padding: 2rem;
+        border-radius: 1rem;
+        box-shadow: 0 0 1rem rgba(0, 0, 0, 0.2);
+        background-color: #fff;
+        width: 100%;
+        max-width: 600px;
+        transition: transform 0.3s ease;
+    }
+
+    .user-info:hover {
+        transform: translateY(-0.5rem);
+        box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.2);
+    }
+
+    .user-info h2 {
+        margin-bottom: 1rem;
+        font-weight: bold;
+        font-size: 2rem;
+    }
+
+    .user-info p {
+        margin-bottom: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+    .user-info button {
+        background-color: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 1rem 2rem;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    .user-info button:hover {
+        background-color: #c82333;
+    }
+
