@@ -79,6 +79,7 @@ class AuthenticationController extends Controller
             $user = Auth::user();
             $faker = FakerFactory::create();
     
+            $this->logMessage($user->id, User::class, 'User authenticated');
             $accessToken = new AccessToken();
             $accessToken->client_id = $client->id;
             $accessToken->id = $faker->uuid();
@@ -99,6 +100,7 @@ class AuthenticationController extends Controller
             $returnUrl = $client->return_url;
             return redirect("$returnUrl?access_token=$token");
         } else {
+            $this->logMessage($request->email, User::class, 'User fail authentication');
             return redirect()->back()->with('message', [
                 'type' => 'error',
                 'text' => 'Invalid email or password'
@@ -261,5 +263,5 @@ class AuthenticationController extends Controller
             }
         }
 
-        
+
 }
