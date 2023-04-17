@@ -332,7 +332,7 @@
 
 	</header>
 
-	<main style="margin-top: 5rem;margin-left: 25%;">
+	<main style="margin-top: 10rem;margin-left: 25%;">
 		@yield('content')
 	</main>
 
